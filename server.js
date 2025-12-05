@@ -5,6 +5,7 @@ import authRoutes from './routes/auth.js';
 import timetableRoutes from './routes/timetable.js';
 import trackingRoutes from './routes/tracking.js';
 import targetRoutes from './routes/targets.js';
+import audioRoutes from './routes/audio.js';
 import './database.js';
 
 const app = express();
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/tracking', trackingRoutes);
 app.use('/api/targets', targetRoutes);
+app.use('/api/audio', audioRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
