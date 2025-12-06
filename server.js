@@ -33,6 +33,8 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Timetable Tracker API is running' });
 });
 
+// Deployment: 2025-12-06 - Added audio routes
+
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
