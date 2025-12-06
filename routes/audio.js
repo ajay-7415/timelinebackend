@@ -1,11 +1,25 @@
 import express from 'express';
 import Audio from '../models/Audio.js';
-import auth from '../middleware/auth.js';
+import jwt from 'jsonwebtoken';
 
 const router = express.Router();
 
+// Middleware to authenticate user
+const auth = async (req, res, next) => {
+    try {
+        const token = req.header('Authorization').replace('Bearer ', '');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
+        req.userId = decoded.userId;
+        next();
+    } catch (error) {
+        res.status(401).json({ message: 'Please authenticate' });
+    }
+};
+
+router.use(auth);
+
 // Get all audio links for the logged-in user
-router.get('/', auth, async (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const audioLinks = await Audio.find({ user: req.userId })
             .sort({ addedAt: -1 });
@@ -16,7 +30,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Create a new audio link
-router.post('/', auth, async (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const { title, originalLink, fileId } = req.body;
 
@@ -35,7 +49,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // Update audio title
-router.patch('/:id', auth, async (req, res) => {
+router.patch('/:id', async (req, res) => {
     try {
         const { title } = req.body;
 
