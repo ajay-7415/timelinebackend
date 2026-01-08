@@ -1,7 +1,22 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { TimetableEntry, CompletionTracking } from '../database.js';
 
 const router = express.Router();
+
+// Middleware to authenticate user
+const auth = async (req, res, next) => {
+    try {
+        const token = req.header('Authorization').replace('Bearer ', '');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
+        req.userId = decoded.userId;
+        next();
+    } catch (error) {
+        res.status(401).json({ message: 'Please authenticate' });
+    }
+};
+
+router.use(auth);
 
 // Mark task as completed or missed
 router.post('/mark', async (req, res) => {
@@ -37,6 +52,7 @@ router.get('/daily/:date', async (req, res) => {
 
         // Get all tasks that don't exclude this day
         const tasks = await TimetableEntry.find({
+            user: req.userId,
             exclude_days: { $ne: dayOfWeek }
         });
 
@@ -79,6 +95,7 @@ router.get('/weekly/:startDate', async (req, res) => {
             const dayOfWeek = currentDate.getDay();
 
             const tasks = await TimetableEntry.find({
+                user: req.userId,
                 exclude_days: { $ne: dayOfWeek }
             });
             const completions = await CompletionTracking.find({
@@ -136,6 +153,7 @@ router.get('/monthly/:year/:month', async (req, res) => {
             const dayOfWeek = currentDate.getDay();
 
             const tasks = await TimetableEntry.find({
+                user: req.userId,
                 exclude_days: { $ne: dayOfWeek }
             });
             const completions = await CompletionTracking.find({

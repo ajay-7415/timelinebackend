@@ -1,12 +1,27 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { TimetableEntry } from '../database.js';
 
 const router = express.Router();
 
+// Middleware to authenticate user
+const auth = async (req, res, next) => {
+    try {
+        const token = req.header('Authorization').replace('Bearer ', '');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
+        req.userId = decoded.userId;
+        next();
+    } catch (error) {
+        res.status(401).json({ message: 'Please authenticate' });
+    }
+};
+
+router.use(auth);
+
 // Get all timetable entries
 router.get('/', async (req, res) => {
     try {
-        const entries = await TimetableEntry.find().sort({ start_time: 1 });
+        const entries = await TimetableEntry.find({ user: req.userId }).sort({ start_time: 1 });
         res.json(entries);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -19,6 +34,7 @@ router.get('/today', async (req, res) => {
         const today = new Date().getDay();
         // Get all entries that don't exclude today
         const entries = await TimetableEntry.find({
+            user: req.userId,
             exclude_days: { $ne: today }
         }).sort({ start_time: 1 });
         res.json(entries);
@@ -30,7 +46,7 @@ router.get('/today', async (req, res) => {
 // Get week's schedule
 router.get('/week', async (req, res) => {
     try {
-        const entries = await TimetableEntry.find().sort({ start_time: 1 });
+        const entries = await TimetableEntry.find({ user: req.userId }).sort({ start_time: 1 });
 
         // Group by day of week (excluding holidays)
         const weekSchedule = {};
@@ -54,6 +70,7 @@ router.post('/', async (req, res) => {
         }
 
         const newEntry = new TimetableEntry({
+            user: req.userId,
             title,
             description,
             start_time,
@@ -75,8 +92,8 @@ router.put('/:id', async (req, res) => {
         const { id } = req.params;
         const { title, description, start_time, end_time, is_recurring, exclude_days } = req.body;
 
-        const updatedEntry = await TimetableEntry.findByIdAndUpdate(
-            id,
+        const updatedEntry = await TimetableEntry.findOneAndUpdate(
+            { _id: id, user: req.userId },
             { title, description, start_time, end_time, is_recurring, exclude_days },
             { new: true, runValidators: true }
         );
@@ -95,7 +112,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const deletedEntry = await TimetableEntry.findByIdAndDelete(id);
+        const deletedEntry = await TimetableEntry.findOneAndDelete({ _id: id, user: req.userId });
 
         if (!deletedEntry) {
             return res.status(404).json({ error: 'Entry not found' });
