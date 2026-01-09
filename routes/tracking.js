@@ -222,4 +222,86 @@ router.get('/history/:timetableId', async (req, res) => {
     }
 });
 
+// Get gamification stats (streaks, badges)
+router.get('/stats', async (req, res) => {
+    try {
+        // 1. Get all completions sorted by date
+        const completions = await CompletionTracking.find({
+            // We need to filter by user, but CompletionTracking only links to TimetableEntry
+            // So strictly we should filter by timetable_ids belonging to user
+            // However, aggregation might be better, or just fetch all user's timetable entries first
+        }).populate({
+            path: 'timetable_id',
+            match: { user: req.userId },
+            select: 'user title'
+        }).sort({ completion_date: -1 });
+
+        // Filter out completions that don't belong to the user (due to populate match)
+        const userCompletions = completions.filter(c => c.timetable_id);
+
+        const completedTasks = userCompletions.filter(c => c.status === 'completed');
+        const missedTasks = userCompletions.filter(c => c.status === 'missed');
+
+        // 2. Calculate Streak
+        let currentStreak = 0;
+        let longestStreak = 0; // To be implemented with more complex logic if needed
+
+        if (completedTasks.length > 0) {
+            // Get unique dates
+            const uniqueDates = [...new Set(completedTasks.map(c => c.completion_date.toISOString().split('T')[0]))].sort().reverse();
+
+            const today = new Date().toISOString().split('T')[0];
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+            // Check if streak is active (completed today or yesterday)
+            if (uniqueDates[0] === today || uniqueDates[0] === yesterday) {
+                currentStreak = 1;
+                let currentDate = new Date(uniqueDates[0]);
+
+                for (let i = 1; i < uniqueDates.length; i++) {
+                    const prevDate = new Date(uniqueDates[i]);
+                    const diffTime = Math.abs(currentDate - prevDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    if (diffDays === 1) {
+                        currentStreak++;
+                        currentDate = prevDate;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 3. Define Badges
+        const badges = [];
+        const totalCompleted = completedTasks.length;
+
+        // Streak Badges
+        if (currentStreak >= 3) badges.push({ id: 'streak_3', icon: '🔥', name: '3 Day Streak', description: 'Consistency is key!' });
+        if (currentStreak >= 7) badges.push({ id: 'streak_7', icon: '⚡', name: '7 Day Streak', description: 'Unstoppable force!' });
+        if (currentStreak >= 30) badges.push({ id: 'streak_30', icon: '👑', name: 'Monthly Master', description: '30 days of greatness' });
+
+        // Completion Badges
+        if (totalCompleted >= 1) badges.push({ id: 'first_win', icon: '🌱', name: 'First Step', description: 'Completed your first task' });
+        if (totalCompleted >= 10) badges.push({ id: 'completed_10', icon: '🥉', name: 'Getting Started', description: '10 tasks completed' });
+        if (totalCompleted >= 50) badges.push({ id: 'completed_50', icon: '🥈', name: 'Productivity Pro', description: '50 tasks completed' });
+        if (totalCompleted >= 100) badges.push({ id: 'completed_100', icon: '🥇', name: 'Grand Master', description: '100 tasks completed' });
+
+        // Perfect Day Logic (Optional - simple check if yesterday was perfect)
+        // This requires more queries, keeping it simple for now or checking only recent history
+
+        res.json({
+            streak: currentStreak,
+            totalCompleted,
+            totalMissed: missedTasks.length,
+            badges
+        });
+
+    } catch (error) {
+        console.error('Stats Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 export default router;
