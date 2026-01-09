@@ -1,14 +1,23 @@
 import express from 'express';
 import Audio from '../models/Audio.js';
+import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
+import { requireActiveSubscription } from '../middleware/subscription.js';
 
 const router = express.Router();
 
-// Middleware to authenticate user
+// Middleware to authenticate user and attach user object
 const auth = async (req, res, next) => {
     try {
         const token = req.header('Authorization').replace('Bearer ', '');
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
+        const user = await User.findById(decoded.userId);
+
+        if (!user) {
+            return res.status(401).json({ message: 'User not found' });
+        }
+
+        req.user = user;
         req.userId = decoded.userId;
         next();
     } catch (error) {
@@ -16,7 +25,9 @@ const auth = async (req, res, next) => {
     }
 };
 
+// Apply authentication and subscription check to all routes
 router.use(auth);
+router.use(requireActiveSubscription);
 
 // Get all audio links for the logged-in user
 router.get('/', async (req, res) => {
