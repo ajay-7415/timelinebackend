@@ -24,8 +24,15 @@ router.post('/signup', async (req, res) => {
         });
 
         res.status(201).json({
-            user: { id: user._id, name: user.name, email: user.email },
-            token
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                subscriptionStatus: user.subscriptionStatus,
+                trialEndsAt: user.trialEndsAt
+            },
+            token,
+            message: 'Account created! You have 7 days free trial.'
         });
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -55,7 +62,13 @@ router.post('/login', async (req, res) => {
         });
 
         res.json({
-            user: { id: user._id, name: user.name, email: user.email },
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                subscriptionStatus: user.subscriptionStatus,
+                trialEndsAt: user.trialEndsAt
+            },
             token
         });
     } catch (error) {
