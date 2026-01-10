@@ -68,8 +68,11 @@ router.get('/daily/:date', async (req, res) => {
         });
 
         // Get completion status for this specific date
+        // Get completion status for this specific date AND these tasks
+        const taskIds = tasks.map(t => t._id);
         const completions = await CompletionTracking.find({
-            completion_date: new Date(date)
+            completion_date: new Date(date),
+            timetable_id: { $in: taskIds }
         }).populate('timetable_id', 'title');
 
         const total = tasks.length;
@@ -109,8 +112,10 @@ router.get('/weekly/:startDate', async (req, res) => {
                 user: req.userId,
                 exclude_days: { $ne: dayOfWeek }
             });
+            const taskIds = tasks.map(t => t._id);
             const completions = await CompletionTracking.find({
-                completion_date: currentDate
+                completion_date: currentDate,
+                timetable_id: { $in: taskIds }
             });
 
             const total = tasks.length;
@@ -167,8 +172,10 @@ router.get('/monthly/:year/:month', async (req, res) => {
                 user: req.userId,
                 exclude_days: { $ne: dayOfWeek }
             });
+            const taskIds = tasks.map(t => t._id);
             const completions = await CompletionTracking.find({
-                completion_date: currentDate
+                completion_date: currentDate,
+                timetable_id: { $in: taskIds }
             });
 
             const total = tasks.length;
@@ -226,18 +233,15 @@ router.get('/history/:timetableId', async (req, res) => {
 router.get('/stats', async (req, res) => {
     try {
         // 1. Get all completions sorted by date
-        const completions = await CompletionTracking.find({
-            // We need to filter by user, but CompletionTracking only links to TimetableEntry
-            // So strictly we should filter by timetable_ids belonging to user
-            // However, aggregation might be better, or just fetch all user's timetable entries first
-        }).populate({
-            path: 'timetable_id',
-            match: { user: req.userId },
-            select: 'user title'
-        }).sort({ completion_date: -1 });
+        // 1. Find all timetable entries for this user first
+        const userTasks = await TimetableEntry.find({ user: req.userId }).select('_id');
+        const userTaskIds = userTasks.map(t => t._id);
 
-        // Filter out completions that don't belong to the user (due to populate match)
-        const userCompletions = completions.filter(c => c.timetable_id);
+        // 2. Get all completions for these tasks sorted by date
+        const userCompletions = await CompletionTracking.find({
+            timetable_id: { $in: userTaskIds }
+        }).populate('timetable_id', 'title')
+            .sort({ completion_date: -1 });
 
         const completedTasks = userCompletions.filter(c => c.status === 'completed');
         const missedTasks = userCompletions.filter(c => c.status === 'missed');
